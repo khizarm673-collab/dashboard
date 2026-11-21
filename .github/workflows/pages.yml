@@ -1,5 +1,7 @@
 name: Collect live feeds and deploy dashboard
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
