@@ -2,16 +2,24 @@ name: Collect live feeds and deploy dashboard
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "live.json"
+      - "data/live.json"
   workflow_dispatch:
   schedule:
     - cron: "*/5 * * * *"
+
 permissions:
   contents: write
   pages: write
   id-token: write
+
+# Use a unique group: sharing "pages" with GitHub's internal Pages workflow
+# caused deployment runs to cancel one another.
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: situation-monitor-publish
+  cancel-in-progress: false
+
 jobs:
   deploy:
     environment:
@@ -20,13 +28,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Collect public API feeds
+        with:
+          fetch-depth: 0
+
+      - name: Collect fresh provider data
         run: python3 .github/scripts/fetch_feeds.py
+
+      # Persist the snapshot on main as well as in the Pages artifact.
+      # paths-ignore prevents this data-only commit from recursively running
+      # this workflow; schedule and manual runs continue to refresh it.
+      - name: Publish snapshot to repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add live.json data/live.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Refresh live API snapshot [skip ci]"
+            git push origin HEAD:main
+          else
+            echo "Snapshot unchanged; nothing to commit."
+          fi
+
       - uses: actions/configure-pages@v5
         with:
           enablement: true
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .
+
       - id: deployment
         uses: actions/deploy-pages@v4
