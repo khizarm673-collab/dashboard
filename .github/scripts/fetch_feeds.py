@@ -93,16 +93,7 @@ Path("data").mkdir(exist_ok=True)
 Path("data/live.json").write_text(payload,encoding="utf-8")
 print("Wrote live.json and data/live.json:", len(payload), "bytes")
 
-# Persist the generated snapshot to the Pages source branch as well.
-# [skip ci] prevents a push-triggered collection loop; scheduled/manual runs remain enabled.
-import subprocess
-subprocess.run(["git","config","user.name","github-actions[bot]"],check=True)
-subprocess.run(["git","config","user.email","41898282+github-actions[bot]@users.noreply.github.com"],check=True)
-subprocess.run(["git","add","live.json","data/live.json"],check=True)
-changed=subprocess.run(["git","diff","--cached","--quiet"]).returncode != 0
-if changed:
- subprocess.run(["git","commit","-m","chore: update live feed snapshot [skip ci]"],check=True)
- subprocess.run(["git","push","origin","HEAD:main"],check=True)
- print("Published live snapshot to main branch.")
-else:
- print("Live snapshot unchanged; no branch commit needed.")
+# The generated snapshots are uploaded directly as the GitHub Pages artifact
+# by this workflow. Do not push commits from the collector: concurrent commits
+# can race with code updates and cause non-fast-forward failures.
+print("Snapshot ready for Pages deployment.")
