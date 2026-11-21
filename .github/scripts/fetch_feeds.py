@@ -35,8 +35,8 @@ def fetch(feed):
   headers["Content-Type"]="application/json"
  req=urllib.request.Request(feed["url"],data=body,headers=headers,method=feed.get("method","GET"))
  try:
-  with urllib.request.urlopen(req,timeout=18) as response:
-   raw=response.read(2_000_000).decode("utf-8","replace")
+  with urllib.request.urlopen(req,timeout=30) as response:
+   raw=response.read(12_000_000).decode("utf-8","replace")
    try: data=json.loads(raw)
    except Exception: data={"raw":raw[:3000]}
    status=response.status
