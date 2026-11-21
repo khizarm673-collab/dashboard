@@ -55,6 +55,37 @@ for source in SOURCES:
  for feed in source["feeds"]:
   feed["result"]=fetch(feed)
   print(source["id"],feed["id"],feed["result"]["status"],"OK" if feed["result"]["ok"] else feed["result"]["error"])
+def compact(value, depth=0, max_items=80):
+ if depth > 7:
+  return "[nested data omitted]"
+ if isinstance(value, str):
+  return value if len(value) <= 2500 else value[:2500] + " …[truncated]"
+ if isinstance(value, list):
+  return [compact(x, depth+1, max_items) for x in value[:max_items]]
+ if isinstance(value, dict):
+  items=list(value.items())[:100]
+  out={str(k):compact(v,depth+1,max_items) for k,v in items}
+  if len(value)>len(items): out["_truncated_keys"]=len(value)-len(items)
+  return out
+ return value
+
+# Keep snapshots small enough for reliable browser delivery while preserving
+# useful live records for dashboard tables and detail views.
+for source in SOURCES:
+ for feed in source["feeds"]:
+  result=feed.get("result") or {}
+  data=result.get("data")
+  compacted=compact(data,max_items=80)
+  encoded=json.dumps(compacted,ensure_ascii=False,separators=(",",":"))
+  if len(encoded.encode("utf-8")) > 250_000:
+   compacted=compact(data,max_items=20)
+   encoded=json.dumps(compacted,ensure_ascii=False,separators=(",",":"))
+  if len(encoded.encode("utf-8")) > 250_000:
+   compacted={"_preview":encoded[:12000]," _truncated":True}
+  result["data"]=compacted
+  result["bytes"]=len(json.dumps(compacted,ensure_ascii=False).encode("utf-8"))
+  result["recordCount"]=len(data) if isinstance(data,list) else (len(data) if isinstance(data,dict) else 0)
+
 out={"generatedAt":datetime.now(timezone.utc).isoformat(),"sources":SOURCES}
 payload=json.dumps(out,ensure_ascii=False,separators=(",",":"))
 # Publish at the site root (most reliable on GitHub Pages) and retain the old path.
