@@ -6,7 +6,7 @@ on:
   schedule:
     - cron: "*/10 * * * *"
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 concurrency:
