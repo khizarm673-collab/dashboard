@@ -46,4 +46,4 @@ const server=http.createServer(async(req,res)=>{if(req.method==='OPTIONS'){res.w
  if(req.method==='POST'&&u.pathname==='/api/sync'){const results=await syncAll();return send(res,200,{checked:results.length,online:results.filter(x=>x.ok).length,failed:results.filter(x=>!x.ok).length,results,sources:snapshot()})}
  return send(res,404,{error:'Not found'});
 });
-server.listen(PORT,'0.0.0.0',()=>console.log('Situation Desk API listening on '+PORT));
+server.listen(PORT,'0.0.0.0',()=>{console.log('Situation Desk API listening on '+PORT);syncAll().catch(e=>console.error('Initial feed sync failed:',e));setInterval(()=>syncAll().catch(e=>console.error('Scheduled feed sync failed:',e)),5*60*1000).unref();});
