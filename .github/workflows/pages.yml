@@ -1,8 +1,10 @@
-name: Deploy static dashboard to GitHub Pages
+name: Collect live feeds and deploy dashboard
 on:
   push:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
 permissions:
   contents: read
   pages: write
@@ -18,6 +20,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Collect public API feeds
+        run: python3 .github/scripts/fetch_feeds.py
       - uses: actions/configure-pages@v5
         with:
           enablement: true
