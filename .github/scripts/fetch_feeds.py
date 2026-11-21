@@ -23,11 +23,7 @@ SOURCES = [
  {"id":"worldmonitor","name":"World Monitor","url":"https://www.worldmonitor.app/","category":"World events","feeds":[{"id":"catalogue","name":"Public product catalogue","url":"https://www.worldmonitor.app/api/product-catalog","note":"Limited public endpoint; other data may require authorised access."}]},
  {"id":"worldwatch","name":"World Watch UK","url":"https://worldwatch.uk/","category":"World intelligence","feeds":[
   {"id":"missiles","name":"Missiles with coordinates","url":"https://worldwatch.uk/missiles_with_coords.json"},
-]}]
- # Optional endpoint supplied by the project owner; the current URL returns 404.
- # Keep it visible as a configuration issue, not a failed live feed.
- {"optionalFeeds":[{"id":"keyevents","name":"Key Events (endpoint needs provider confirmation)","url":"https://worldwatch.uk/key_events_proxy.php","status":"unavailable","reason":"HTTP 404: the supplied URL does not exist at the provider."}]}
-]
+],"optionalFeeds":[{"id":"keyevents","name":"Key Events (endpoint needs provider confirmation)","url":"https://worldwatch.uk/key_events_proxy.php","status":"unavailable","reason":"HTTP 404: the supplied URL does not exist at the provider."}]}]
 
 def fetch(feed):
  start=time.time()
