@@ -56,7 +56,18 @@ function renderIntel(data){
  const cyber=obj(pick(data,"osiris","cyber")),threats=arr(cyber.threats);
  panels.push(panel("OSIRIS · cyber threat watch",table(["Severity","Vulnerability","Vendor / product"],threats.slice(0,8).map(x=>["<span class='severity'>"+esc(x.severity)+"</span>",esc(x.id+" · "+x.name),esc(x.vendor+" / "+x.product)])),esc(cyber.stats?.threat_level||"Threat feed")+" · "+pretty(cyber.stats?.cisa_total)+" CISA KEV"));
  const missiles=arr(pick(data,"worldwatch","missiles")),missileRows=missiles.slice(0,8).map(x=>[esc(x.country),esc(arr(x.missiles).map(m=>m.name).join(", ")),esc(x.lat+", "+x.lon)]);
- panels.push(panel("World Watch · missile inventory",table(["Country","Reported systems","Coordinates"],missileRows),missiles.length+" country records"));
+ panels.push(panel("World Watch · missile inventory",table(["Country","Reported systems","Coordinates"],missileRows)+'<p class="muted">Source: <a href="https://worldwatch.uk/" target="_blank" rel="noopener">World Watch UK</a> · Data shown as provided by the source; attribution retained.</p>',missiles.length+" country records"));
+ const keyFeed=data.sources?.find(s=>s.id==="worldwatch")?.feeds?.find(f=>f.id==="keyevents");
+ const keyResult=keyFeed?.result||{},keyData=keyResult.data;
+ let keyList=[];
+ if(Array.isArray(keyData)) keyList=keyData;
+ else if(keyData&&typeof keyData==="object"){
+  for(const value of Object.values(keyData)){if(Array.isArray(value)){keyList=value;break}}
+ }
+ const keyBody=keyResult.ok
+  ? items(keyList.map(x=>({title:x.title||x.name||x.event||x.headline,summary:x.summary||x.description||x.details,location_name:x.location||x.country,link:x.url||x.source_url})),10)+'<p class="muted">Source: <a href="https://worldwatch.uk/" target="_blank" rel="noopener">World Watch UK</a> · Verify individual reports against their original sources.</p>'
+  : '<div class="intel-empty">Key Events feed unavailable'+(keyResult.status?' · HTTP '+esc(keyResult.status):'')+'. No event data is being fabricated.</div><p class="muted">Configured endpoint: <a href="'+safeUrl(keyFeed?.url)+'" target="_blank" rel="noopener">World Watch Key Events</a>. Contact the provider for the current authorised endpoint.</p>';
+ panels.push(panel("World Watch · key events",keyBody,keyResult.ok?keyList.length+" events returned":"Provider endpoint unavailable"));
  const health=obj(pick(data,"osiris","health")),stats=obj(pick(data,"osiris","stats")).stats||{};
  panels.push(panel("OSIRIS · platform status",'<div class="intel-metrics"><div class="intel-metric"><strong>'+esc(health.status||"—")+'</strong><span>API status</span></div><div class="intel-metric"><strong>'+pretty(stats.flights)+'</strong><span>Flight records</span></div><div class="intel-metric"><strong>'+pretty(stats.sats)+'</strong><span>Satellites</span></div><div class="intel-metric"><strong>'+pretty(stats.incidents)+'</strong><span>Incidents</span></div><div class="intel-metric"><strong>'+pretty(stats.nuclear)+'</strong><span>Nuclear facilities</span></div><div class="intel-metric"><strong>'+pretty(health.uptime_seconds/3600)+'h</strong><span>Process uptime</span></div></div>',"Health endpoint confirms process status, not all upstream feeds"));
  const catalog=obj(pick(data,"worldmonitor","catalogue")),plans=arr(catalog.plans);
