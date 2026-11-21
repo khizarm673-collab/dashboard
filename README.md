@@ -1,30 +1,18 @@
-# Situation Desk — Unified Situational Awareness Dashboard
+# Situation Desk
 
-Node.js dashboard and API connector hub for Glint Terminal, SitDeck, WorldwatchUK, WorldMonitor, OSIRIS AI, ShadowBroker, WatchBoard, Monitor the Situation, and Hormuz Crisis Tracker.
+Responsive situational-awareness dashboard and Node.js API connector service.
 
 ## Run locally
+Node.js 18+: `npm install && npm start`, then visit http://localhost:5050.
 
-Requires Node.js 18+.
+## API routes
+- GET /api/health
+- GET /api/connectors
+- PUT /api/connectors/:id
+- POST /api/connectors/:id/sync
+- GET /api/unified
 
-```bash
-npm install
-npm start
-```
-
-Open http://localhost:5050.
-
-## API
-
-- GET /api/health — health check
-- GET /api/connectors — configured connectors (keys are never returned)
-- PUT /api/connectors/:id — configure a connector
-- POST /api/connectors/:id/sync — fetch configured GET endpoints
-- GET /api/unified — normalized cached reports
-
-Connector credentials are stored server-side in data/config.json, which is excluded from Git. Configure HTTPS API URLs and only provider-authorized endpoints. Official API access, authentication, and terms must be verified for each provider before use.
+The listed providers are starter connector entries, not verified integrations. Obtain each provider's official API documentation, credentials and permission before configuring endpoints. API keys are server-side and configuration data is excluded from Git.
 
 ## Deploy
-
-This repository includes render.yaml. In Render, create a Blueprint from this GitHub repository. Build: npm install. Start: npm start. Health check: /api/health. The server binds to 0.0.0.0 and uses the PORT environment variable.
-
-The dashboard starts with no connected providers and no fabricated live events. Add a provider's authorized base URL and endpoint paths in Platform Integrations, then configure API keys on the server before syncing.
+Deploy on Render from this repository. The included render.yaml sets Node runtime, npm start, and /api/health. GitHub Pages is static hosting only and cannot run this backend or securely store API keys.
