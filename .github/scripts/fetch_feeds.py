@@ -1,6 +1,13 @@
-import json, time, urllib.request, urllib.error
+import json, time, hashlib, urllib.request, urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
+
+PREVIOUS = {}
+try:
+ old = json.loads(Path('live.json').read_text(encoding='utf-8'))
+ PREVIOUS = {(s.get('id'), f.get('id')): f.get('result', {}) for s in old.get('sources', []) for f in s.get('feeds', [])}
+except Exception:
+ pass
 
 SOURCES = [
  {"id":"glint","name":"Glint Trade Terminal","url":"https://glint.trade/terminal","category":"Markets","feeds":[
@@ -27,32 +34,46 @@ SOURCES = [
 
 def fetch(feed):
  start=time.time()
- headers={"Accept":"application/json","User-Agent":"SituationDesk/1.0 (GitHub Actions read-only feed collector)"}
+ headers={"Accept":"application/json","User-Agent":"SituationDesk/1.1 (+https://github.com/khizarm673-collab/dashboard; live read-only feed collector)","Cache-Control":"no-cache, no-store, max-age=0","Pragma":"no-cache","Expires":"0"}
  body=None
  if feed.get("body") is not None:
   body=json.dumps(feed["body"]).encode()
   headers["Content-Type"]="application/json"
- req=urllib.request.Request(feed["url"],data=body,headers=headers,method=feed.get("method","GET"))
- try:
-  with urllib.request.urlopen(req,timeout=30) as response:
-   raw=response.read(12_000_000).decode("utf-8","replace")
+ method=feed.get("method","GET")
+ status=0; data=None; error=None
+ for attempt in range(3):
+  req=urllib.request.Request(feed["url"],data=body,headers=headers,method=method)
+  try:
+   with urllib.request.urlopen(req,timeout=35) as response:
+    raw=response.read(12_000_000).decode("utf-8","replace")
+    try: data=json.loads(raw)
+    except Exception: data={"raw":raw[:3000]}
+    status=response.status
+    if not 200 <= status < 300: error="Provider returned HTTP "+str(status)
+    break
+  except urllib.error.HTTPError as e:
+   raw=e.read(3000).decode("utf-8","replace")
    try: data=json.loads(raw)
-   except Exception: data={"raw":raw[:3000]}
-   status=response.status
-   ok=200 <= status < 300
-   error=None if ok else "Provider returned HTTP "+str(status)
- except urllib.error.HTTPError as e:
-  raw=e.read(3000).decode("utf-8","replace")
-  try: data=json.loads(raw)
-  except Exception: data={"raw":raw}
-  status=e.code; ok=False; error="Provider returned HTTP "+str(status)
- except Exception as e:
-  status=0; ok=False; data=None; error=str(e)[:500]
- return {"ok":ok,"status":status,"ms":round((time.time()-start)*1000),"checked":datetime.now(timezone.utc).isoformat(),"data":data,"error":error,"url":feed["url"]}
+   except Exception: data={"raw":raw}
+   status=e.code; error="Provider returned HTTP "+str(status)
+   if status not in (408,425,429,500,502,503,504) or attempt == 2: break
+  except Exception as e:
+   error=str(e)[:500]
+   if attempt == 2: break
+  time.sleep(1.5*(attempt+1))
+ ok=200 <= status < 300
+ checked=datetime.now(timezone.utc).isoformat()
+ encoded=json.dumps(data,sort_keys=True,ensure_ascii=False,separators=(",",":"))
+ fingerprint=hashlib.sha256(encoded.encode("utf-8")).hexdigest() if data is not None else None
+ previous=PREVIOUS.get((feed.get("_source_id"),feed.get("id")),{})
+ changed=bool(fingerprint and fingerprint != previous.get("fingerprint"))
+ return {"ok":ok,"status":status,"ms":round((time.time()-start)*1000),"checked":checked,"data":data,"error":error,"url":feed["url"],"fingerprint":fingerprint,"changed":changed,"lastChangedAt":checked if changed or not previous.get("lastChangedAt") else previous.get("lastChangedAt")}
 
 for source in SOURCES:
  for feed in source["feeds"]:
+  feed["_source_id"]=source["id"]
   feed["result"]=fetch(feed)
+  feed.pop("_source_id",None)
   print(source["id"],feed["id"],feed["result"]["status"],"OK" if feed["result"]["ok"] else feed["result"]["error"])
 def compact(value, depth=0, max_items=80):
  if depth > 7:
@@ -92,6 +113,7 @@ Path("live.json").write_text(payload,encoding="utf-8")
 Path("data").mkdir(exist_ok=True)
 Path("data/live.json").write_text(payload,encoding="utf-8")
 print("Wrote live.json and data/live.json:", len(payload), "bytes")
+print("Changed feeds:", sum(1 for s in SOURCES for f in s["feeds"] if f["result"].get("changed")))
 
 # The generated snapshots are uploaded directly as the GitHub Pages artifact
 # by this workflow. Do not push commits from the collector: concurrent commits
