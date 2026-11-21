@@ -56,5 +56,9 @@ for source in SOURCES:
   feed["result"]=fetch(feed)
   print(source["id"],feed["id"],feed["result"]["status"],"OK" if feed["result"]["ok"] else feed["result"]["error"])
 out={"generatedAt":datetime.now(timezone.utc).isoformat(),"sources":SOURCES}
+payload=json.dumps(out,ensure_ascii=False,separators=(",",":"))
+# Publish at the site root (most reliable on GitHub Pages) and retain the old path.
+Path("live.json").write_text(payload,encoding="utf-8")
 Path("data").mkdir(exist_ok=True)
-Path("data/live.json").write_text(json.dumps(out,ensure_ascii=False,separators=(",",":")),encoding="utf-8")
+Path("data/live.json").write_text(payload,encoding="utf-8")
+print("Wrote live.json and data/live.json:", len(payload), "bytes")
