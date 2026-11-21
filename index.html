@@ -40,15 +40,19 @@ function renderIntel(data){
  panels.push(panel("Hormuz Strait · maritime situation",'<div class="intel-metrics"><div class="intel-metric"><strong>'+esc(st.status||"—")+'</strong><span>Strait status</span></div><div class="intel-metric"><strong>'+pretty(ships.currentTransits)+'</strong><span>Current transits</span></div><div class="intel-metric"><strong>'+pretty(ships.percentOfNormal)+'%</strong><span>Traffic vs normal</span></div><div class="intel-metric"><strong>$'+pretty(oil.brentPrice)+'</strong><span>Brent crude</span></div><div class="intel-metric"><strong>'+pretty(stranded.total)+'</strong><span>Stranded vessels</span></div><div class="intel-metric"><strong>'+esc(ins.level||"—")+'</strong><span>War-risk insurance</span></div></div><p class="muted">'+esc(st.description||"")+'</p>',"Provider dashboard"));
  const ev=arr(pick(data,"mts","events")).sort((a,b)=>String(b.updated_at||"").localeCompare(String(a.updated_at||"")));
  panels.push(panel("Monitor the Situation · events",items(ev.map(x=>({title:x.title,summary:x.summary,location_name:x.location_name,link:x.url})),8),ev.length+" events returned"));
+ const trackerData=obj(pick(data,"watchboard","trackers")),trackers=arr(trackerData.trackers);
+ panels.push(panel("Watchboard · active trackers",items(trackers.map(x=>({title:x.name||x.shortName,summary:x.description,location_name:x.region||x.country})),8),pretty(trackerData.count)+" trackers"));
  const breaking=obj(pick(data,"watchboard","breaking")),breakItems=arr(breaking.items);
- panels.push(panel("Watchboard · breaking trackers",items(breakItems.map(x=>({title:x.headline||x.name,summary:x.subtitle||x.summary,link:x.url})),7),pretty(breaking.count)+" tracked items"));
+ panels.push(panel("Watchboard · breaking trackers",items(breakItems.map(x=>({title:x.headline||x.name,summary:x.subtitle||x.summary,location_name:x.country||x.region})),7),pretty(breaking.count)+" tracked items"));
+ const searchData=obj(pick(data,"watchboard","search")),searchEvents=arr(searchData.events);
+ panels.push(panel("Watchboard · search index",items(searchEvents.map(x=>({title:x.title||x.headline||x.name,summary:x.summary||x.description,location_name:x.location||x.region})),7),pretty(searchData.count)+" indexed records"));
  const newsData=obj(pick(data,"osiris","news")),news=arr(newsData.news);
  panels.push(panel("OSIRIS · latest news",items(news.map(x=>({title:x.title,summary:x.summary||x.description,link:x.link,location_name:x.place?.label||x.place?.name})),7),pretty(newsData.total)+" reports"));
  const eqData=obj(pick(data,"osiris","earthquakes")),eq=arr(eqData.earthquakes);
  panels.push(panel("OSIRIS · earthquakes",table(["Magnitude","Location","Depth","Tsunami"],eq.slice(0,8).map(x=>[esc(x.magnitude),esc(x.place),pretty(x.depth)+" km",x.tsunami?"<span class='bad'>Yes</span>":"No"])),pretty(eqData.total)+" events"));
  const flightsData=pick(data,"osiris","flights");let flights=obj(flightsData);if(flights.raw){try{flights=JSON.parse(flights.raw)}catch{}}
- const flightRows=[...arr(flights.commercial_flights),...arr(flights.other_flights)].slice(0,8).map(x=>[esc(x.callsign||"—"),esc(x.airline_code||x.category||"—"),pretty(x.alt)+" m",pretty(x.speed_knots)+" kn",x.grounded?"Ground":"Air"]);
- panels.push(panel("OSIRIS · live flights",table(["Callsign","Airline","Altitude","Speed","State"],flightRows),pretty(flights.total||arr(flights.commercial_flights).length)+" flights"));
+ const flightRows=[...arr(flights.commercial_flights),...arr(flights.private_flights),...arr(flights.military_flights)].slice(0,12).map(x=>[esc(x.callsign||"—"),esc(x.airline_code||x.category||"—"),pretty(x.alt)+" m",pretty(x.speed_knots)+" kn",x.grounded?"Ground":"Air"]);
+ panels.push(panel("OSIRIS · live flights",table(["Callsign","Airline","Altitude","Speed","State"],flightRows),pretty(flights.total||flightRows.length)+" flights"));
  const cyber=obj(pick(data,"osiris","cyber")),threats=arr(cyber.threats);
  panels.push(panel("OSIRIS · cyber threat watch",table(["Severity","Vulnerability","Vendor / product"],threats.slice(0,8).map(x=>["<span class='severity'>"+esc(x.severity)+"</span>",esc(x.id+" · "+x.name),esc(x.vendor+" / "+x.product)])),esc(cyber.stats?.threat_level||"Threat feed")+" · "+pretty(cyber.stats?.cisa_total)+" CISA KEV"));
  const missiles=arr(pick(data,"worldwatch","missiles")),missileRows=missiles.slice(0,8).map(x=>[esc(x.country),esc(arr(x.missiles).map(m=>m.name).join(", ")),esc(x.lat+", "+x.lon)]);
