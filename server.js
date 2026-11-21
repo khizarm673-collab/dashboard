@@ -1,1 +1,49 @@
-const http=require('http'),fs=require('fs'),path=require('path');const PORT=Number(process.env.PORT)||5050,DATA=path.join(__dirname,'data','config.json');const defaults=[['glint','Glint Terminal'],['sitdeck','SitDeck'],['worldwatchuk','WorldwatchUK'],['worldmonitor','WorldMonitor'],['osiris','OSIRIS AI'],['shadowbroker','ShadowBroker'],['watchboard','WatchBoard'],['mts','Monitor the Situation'],['hormuz','Hormuz Crisis Tracker']];let connectors={};try{connectors=JSON.parse(fs.readFileSync(DATA))}catch{}for(const[id,name]of defaults)connectors[id]={id,name,baseUrl:'',endpoints:[],enabled:false,key:'',...(connectors[id]||{})};function save(){fs.mkdirSync(path.dirname(DATA),{recursive:true});fs.writeFileSync(DATA,JSON.stringify(connectors,null,2))}function safe(c){const{key,...v}=c;return{...v,hasKey:!!key}}function send(res,status,data){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data))}async function body(req){let s='';for await(const c of req)s+=c;if(s.length>100000)throw Error('Request too large');return s?JSON.parse(s):{}}async function fetchData(c,p){const base=new URL(c.baseUrl),url=new URL(p,base);if(url.origin!==base.origin)throw Error('Endpoint must use configured API origin');const headers={Accept:'application/json'};if(c.key)headers.Authorization='Bearer '+c.key;const r=await fetch(url,{headers,signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('Provider HTTP '+r.status);return r.json()}function unified(){const out=[];for(const c of Object.values(connectors))for(const[p,v]of Object.entries(c.cache||{})){const a=Array.isArray(v.data)?v.data:Object.values(v.data||{}).find(Array.isArray)||[];for(const x of a.slice(0,50))out.push({source:c.name,title:x.title||x.name||x.headline||'Report',time:x.date||x.timestamp||x.publishedAt||'',link:x.url||x.link||''})}return out}http.createServer(async(req,res)=>{try{const u=new URL(req.url,'http://localhost');if(req.method==='GET'&&u.pathname==='/'){res.writeHead(200,{'Content-Type':'text/html'});return res.end(fs.readFileSync(path.join(__dirname,'index.html')))}if(req.method==='GET'&&u.pathname==='/api/health')return send(res,200,{ok:true,service:'Situation Desk'});if(req.method==='GET'&&u.pathname==='/api/connectors')return send(res,200,Object.fromEntries(Object.entries(connectors).map(([k,c])=>[k,safe(c)])));if(req.method==='GET'&&u.pathname==='/api/unified')return send(res,200,unified());let m=u.pathname.match(/^\/api\/connectors\/([\w-]+)$/);if(m&&req.method==='PUT'){const b=await body(req),old=connectors[m[1]]||{};if(b.baseUrl&&!['http:','https:'].includes(new URL(b.baseUrl).protocol))return send(res,400,{error:'HTTP(S) only'});connectors[m[1]]={...old,...b,id:m[1],key:b.key||old.key||'',cache:old.cache||{}};save();return send(res,200,safe(connectors[m[1]]))}m=u.pathname.match(/^\/api\/connectors\/([\w-]+)\/sync$/);if(m&&req.method==='POST'){const c=connectors[m[1]];if(!c)return send(res,404,{error:'Unknown connector'});const results={};for(const p of c.endpoints||[])try{c.cache=c.cache||{};c.cache[p]={data:await fetchData(c,p),at:new Date().toISOString()};results[p]='ok'}catch(e){results[p]=e.message}save();return send(res,200,{results})}return send(res,404,{error:'Not found'})}catch(e){send(res,500,{error:e.message})}}).listen(PORT,'0.0.0.0',()=>console.log('Listening on '+PORT));
+const http=require('http');
+const fs=require('fs');
+const path=require('path');
+const PORT=Number(process.env.PORT)||5050;
+const HEADERS={'Accept':'application/json','User-Agent':'SituationDesk/1.0 (read-only dashboard)'};
+const SOURCES=[
+{id:'glint',name:'Glint Trade Terminal',url:'https://glint.trade/terminal',category:'Markets',feeds:[
+{id:'mids',name:'All mid prices',method:'POST',url:'https://api.hyperliquid.xyz/info',body:{type:'allMids'}},
+{id:'meta',name:'Perpetuals metadata',method:'POST',url:'https://api.hyperliquid.xyz/info',body:{type:'meta'}},
+{id:'contexts',name:'Funding, open interest & mark prices',method:'POST',url:'https://api.hyperliquid.xyz/info',body:{type:'metaAndAssetCtxs'}}]},
+{id:'hormuz',name:'Hormuz Strait Monitor',url:'https://hormuzstraitmonitor.com/',category:'Maritime',feeds:[{id:'dashboard',name:'Dashboard feed',url:'https://hormuzstraitmonitor.com/api/dashboard'}]},
+{id:'mts',name:'Monitor the Situation',url:'https://monitor-the-situation.com/',category:'OSINT',feeds:[{id:'events',name:'Live events',url:'https://monitor-the-situation.com/api/events'}]},
+{id:'watchboard',name:'Watchboard',url:'https://watchboard.dev/',category:'Tracking',feeds:[
+{id:'trackers',name:'Trackers',url:'https://watchboard.dev/api/v1/trackers.json'},
+{id:'breaking',name:'Breaking news',url:'https://watchboard.dev/api/v1/breaking.json'},
+{id:'search',name:'Search index',url:'https://watchboard.dev/api/v1/search-index.json'}]},
+{id:'osiris',name:'OSIRIS AI',url:'https://www.osirisai.live/',category:'Global intelligence',feeds:[
+{id:'health',name:'Health',url:'https://osirisai.live/api/health'},
+{id:'stats',name:'Global statistics',url:'https://osirisai.live/api/stats'},
+{id:'news',name:'Latest news',url:'https://osirisai.live/api/news'},
+{id:'earthquakes',name:'Earthquakes',url:'https://osirisai.live/api/earthquakes'},
+{id:'flights',name:'Flights',url:'https://osirisai.live/api/flights'},
+{id:'cyber',name:'Cyber threats',url:'https://osirisai.live/api/cyber-threats'}]},
+{id:'worldmonitor',name:'World Monitor',url:'https://www.worldmonitor.app/',category:'World events',feeds:[{id:'catalogue',name:'Public product catalogue',url:'https://www.worldmonitor.app/api/product-catalog',note:'Limited public endpoint; other data may require authorised access.'}]},
+{id:'worldwatch',name:'World Watch UK',url:'https://worldwatch.uk/',category:'World intelligence',feeds:[
+{id:'missiles',name:'Missiles with coordinates',url:'https://worldwatch.uk/missiles_with_coords.json'},
+{id:'keyevents',name:'Key events (unverified endpoint)',url:'https://worldwatch.uk/key_events_proxy.php',note:'Endpoint path supplied in uploaded configuration but not verified.'}]}
+];
+const cache={};
+function send(res,status,obj){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type','Cache-Control':'no-store'});res.end(JSON.stringify(obj))}
+async function requestFeed(feed){
+ const started=Date.now(),opts={method:feed.method||'GET',headers:{...HEADERS},signal:AbortSignal.timeout(14000)};
+ if(feed.body){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(feed.body)}
+ try{const r=await fetch(feed.url,opts);const raw=await r.text();let data;try{data=JSON.parse(raw)}catch{data={raw:raw.slice(0,3000)}}
+ return {ok:r.ok,status:r.status,ms:Date.now()-started,checked:new Date().toISOString(),data,error:r.ok?null:'Provider returned HTTP '+r.status,url:feed.url};
+ }catch(e){return {ok:false,status:0,ms:Date.now()-started,checked:new Date().toISOString(),data:null,error:e.name==='TimeoutError'?'Request timed out':e.message,url:feed.url}}
+}
+async function syncAll(){const jobs=[];for(const s of SOURCES)for(const f of s.feeds)jobs.push((async()=>{const result=await requestFeed(f);cache[s.id+':'+f.id]=result;return {source:s.id,feed:f.id,...result}})());return Promise.all(jobs)}
+function snapshot(){return SOURCES.map(s=>({...s,feeds:s.feeds.map(f=>({...f,result:cache[s.id+':'+f.id]||null}))}))}
+const server=http.createServer(async(req,res)=>{if(req.method==='OPTIONS'){res.writeHead(204,{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Methods':'GET,POST,OPTIONS','Access-Control-Allow-Headers':'Content-Type'});return res.end()}
+ const u=new URL(req.url,'http://localhost');
+ if(req.method==='GET'&&u.pathname==='/'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});return res.end(fs.readFileSync(path.join(__dirname,'index.html')))}
+ if(req.method==='GET'&&u.pathname==='/api/health')return send(res,200,{ok:true,service:'Situation Desk API',sources:SOURCES.length,feeds:SOURCES.reduce((n,s)=>n+s.feeds.length,0)});
+ if(req.method==='GET'&&u.pathname==='/api/sources')return send(res,200,snapshot());
+ if(req.method==='GET'&&u.pathname==='/api/data')return send(res,200,Object.entries(cache).map(([key,result])=>({key,...result})));
+ if(req.method==='POST'&&u.pathname==='/api/sync'){const results=await syncAll();return send(res,200,{checked:results.length,online:results.filter(x=>x.ok).length,failed:results.filter(x=>!x.ok).length,results,sources:snapshot()})}
+ return send(res,404,{error:'Not found'});
+});
+server.listen(PORT,'0.0.0.0',()=>console.log('Situation Desk API listening on '+PORT));
